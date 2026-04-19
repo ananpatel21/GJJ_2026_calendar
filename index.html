@@ -1,0 +1,951 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GI Joe & Jane's Availability Calendar</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@300;400;500&display=swap');
+
+  :root {
+    --bg: #0e0e0e;
+    --surface: #161616;
+    --surface2: #1c1c1c;
+    --border: #2a2a2a;
+    --text: #e8e4dc;
+    --muted: #6b6460;
+    --accent: #c8b560;
+    --accent-dim: rgba(200,181,96,0.12);
+    --green: #5dba78;
+    --green-dim: rgba(93,186,120,0.15);
+    --red: #e05c5c;
+    --red-dim: rgba(224,92,92,0.13);
+    --yellow: #e8a84a;
+    --yellow-dim: rgba(232,168,74,0.13);
+    --blue: #7aa8d6;
+    --blue-dim: rgba(122,168,214,0.12);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    min-height: 100vh;
+    padding: 40px 24px 80px;
+  }
+
+  header { text-align: center; margin-bottom: 32px; }
+  header h1 {
+    font-family: 'DM Serif Display', serif;
+    font-size: clamp(26px, 5vw, 46px);
+    font-weight: 400;
+    letter-spacing: -0.5px;
+    color: var(--text);
+    line-height: 1.1;
+  }
+  header h1 em { color: var(--accent); font-style: italic; }
+  header p { color: var(--muted); margin-top: 10px; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; }
+
+  .sync-status {
+    display: flex; align-items: center; justify-content: center; gap: 7px;
+    margin-top: 10px; font-size: 11px; letter-spacing: 0.06em;
+    text-transform: uppercase; color: var(--muted);
+  }
+  .sync-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--muted); transition: background 0.4s;
+  }
+  .sync-dot.live { background: var(--green); box-shadow: 0 0 6px var(--green); animation: pulse 2s infinite; }
+  .sync-dot.error { background: var(--red); }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  /* YEAR SELECTOR - scrollable */
+  .year-selector {
+    display: flex; justify-content: flex-start; gap: 8px;
+    margin: 0 auto 36px;
+    max-width: 1200px;
+    overflow-x: auto;
+    padding: 4px 2px 8px;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+  .year-selector::-webkit-scrollbar { height: 6px; }
+  .year-selector::-webkit-scrollbar-track { background: transparent; }
+  .year-selector::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  .year-selector::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+  .year-selector-inner {
+    display: flex; gap: 8px; margin: 0 auto; padding: 0 20px;
+    flex-wrap: nowrap;
+  }
+  .year-btn {
+    background: var(--surface); border: 1px solid var(--border);
+    color: var(--muted); border-radius: 100px;
+    font-family: 'DM Mono', monospace; font-size: 12px;
+    letter-spacing: 0.08em; padding: 7px 18px;
+    cursor: pointer; transition: all 0.2s;
+    white-space: nowrap; flex-shrink: 0;
+    scroll-snap-align: center;
+  }
+  .year-btn:hover { color: var(--text); border-color: var(--muted); }
+  .year-btn.active {
+    background: var(--accent-dim); color: var(--accent); border-color: var(--accent);
+  }
+
+  /* ADD PANEL */
+  .add-panel {
+    max-width: 700px; margin: 0 auto 40px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 14px; overflow: hidden;
+  }
+  .add-panel-header {
+    padding: 16px 22px; border-bottom: 1px solid transparent;
+    display: flex; align-items: center; justify-content: space-between;
+    cursor: pointer; user-select: none; transition: border-color 0.2s;
+  }
+  .add-panel-header.open { border-bottom-color: var(--border); }
+  .add-panel-header h2 { font-family: 'DM Serif Display', serif; font-size: 17px; font-weight: 400; color: var(--accent); }
+  .toggle-icon { font-size: 20px; color: var(--muted); transition: transform 0.3s; line-height: 1; }
+  .add-panel-header.open .toggle-icon { transform: rotate(45deg); }
+  .add-panel-body { display: none; padding: 22px; gap: 16px; flex-direction: column; }
+  .add-panel-body.open { display: flex; }
+
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 520px) { .form-row { grid-template-columns: 1fr; } }
+
+  .form-group { display: flex; flex-direction: column; gap: 6px; }
+  .form-group label { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+  .form-group select,
+  .form-group input[type="date"],
+  .form-group input[type="text"] {
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 7px;
+    color: var(--text); font-family: 'DM Mono', monospace; font-size: 13px;
+    padding: 9px 12px; outline: none; width: 100%;
+    transition: border-color 0.2s; -webkit-appearance: none; appearance: none;
+  }
+  .form-group select:focus, .form-group input:focus { border-color: var(--accent); }
+  .form-group select option { background: #1c1c1c; }
+
+  .submit-btn {
+    background: var(--accent); color: #0e0e0e; border: none; border-radius: 8px;
+    font-family: 'DM Mono', monospace; font-size: 12px; font-weight: 500;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    padding: 11px 24px; cursor: pointer;
+    transition: opacity 0.2s, transform 0.1s; align-self: flex-start;
+  }
+  .submit-btn:hover { opacity: 0.85; }
+  .submit-btn:active { transform: scale(0.97); }
+  .submit-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .entry-list { border-top: 1px solid var(--border); margin-top: 4px; }
+  .entry-list-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 0 6px; }
+  .entry-list-title { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+  .entry-count { font-size: 10px; color: var(--accent); }
+
+  .entry-item {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 9px 0; border-bottom: 1px solid #1e1e1e; gap: 10px;
+    animation: fadeIn 0.25s ease;
+  }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(-4px)} to{opacity:1;transform:translateY(0)} }
+  .entry-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .entry-name { font-size: 11px; color: var(--accent); text-transform: uppercase; letter-spacing: 0.06em; }
+  .entry-dates { font-size: 12px; color: var(--text); }
+  .entry-reason { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .entry-remove {
+    background: none; border: 1px solid var(--border); border-radius: 5px;
+    color: var(--muted); font-size: 11px; padding: 3px 9px; cursor: pointer;
+    flex-shrink: 0; font-family: 'DM Mono', monospace; transition: all 0.15s;
+  }
+  .entry-remove:hover { border-color: var(--red); color: var(--red); }
+  .no-entries, .loading-entries { font-size: 11px; color: var(--muted); padding: 14px 0 4px; text-align: center; letter-spacing: 0.04em; }
+
+  /* LEGEND */
+  .legend { display: flex; gap: 18px; justify-content: center; flex-wrap: wrap; margin-bottom: 28px; }
+  .legend-item { display: flex; align-items: center; gap: 7px; font-size: 11px; color: var(--muted); letter-spacing: 0.05em; text-transform: uppercase; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+
+  /* CALENDAR */
+  .months-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px; max-width: 1200px; margin: 0 auto; }
+  .month-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .month-header { padding: 13px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: baseline; gap: 10px; }
+  .month-name { font-family: 'DM Serif Display', serif; font-size: 19px; font-weight: 400; }
+  .month-year { font-size: 11px; color: var(--muted); letter-spacing: 0.08em; }
+  .open-badge { margin-left: auto; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; padding: 3px 10px; border-radius: 100px; background: var(--green-dim); color: var(--green); border: 1px solid rgba(93,186,120,0.25); }
+  .month-body { padding: 14px 18px; }
+  .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; margin-bottom: 14px; }
+  .cal-day-label { text-align: center; font-size: 9px; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; padding: 4px 0 6px; }
+  .cal-day {
+    aspect-ratio: 1; display: flex; align-items: center; justify-content: center;
+    font-size: 11px; border-radius: 4px; position: relative; cursor: default;
+    transition: filter 0.15s;
+  }
+  .cal-day.empty { background: transparent; }
+  .cal-day.free { color: var(--text); }
+  .cal-day.busy { background: var(--red-dim); color: var(--red); font-weight: 500; }
+  .cal-day.partial { background: var(--yellow-dim); color: var(--yellow); }
+  .cal-day.open-weekend { background: var(--green-dim); color: var(--green); font-weight: 500; outline: 1px solid rgba(93,186,120,0.3); }
+  .cal-day.holiday { outline: 1px dashed var(--blue); }
+  .cal-day.today { outline: 1.5px solid var(--accent) !important; color: var(--accent); }
+  .cal-day:not(.empty):hover { filter: brightness(1.35); }
+
+  .conflict-list { border-top: 1px solid var(--border); padding-top: 10px; }
+  .conflict-row { display: flex; align-items: flex-start; gap: 8px; padding: 4px 0; border-bottom: 1px solid #1e1e1e; }
+  .conflict-row:last-child { border-bottom: none; }
+  .conflict-name { color: var(--muted); min-width: 64px; font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; padding-top: 1px; flex-shrink: 0; }
+  .conflict-event { font-size: 11px; color: var(--text); line-height: 1.6; }
+  .tag-busy { display:inline-block; background:var(--red-dim); color:var(--red); border-radius:3px; font-size:9px; padding:1px 5px; margin-right:4px; }
+  .tag-user { display:inline-block; background:var(--accent-dim); color:var(--accent); border-radius:3px; font-size:9px; padding:1px 5px; margin-right:4px; }
+  .tag-group { display:inline-block; background:var(--blue-dim); color:var(--blue); border-radius:3px; font-size:9px; padding:1px 5px; margin-right:4px; }
+
+  /* RANKING SECTION */
+  .ranking-section {
+    max-width: 1200px; margin: 0 auto 40px;
+    padding: 28px 30px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 14px;
+  }
+  .ranking-section h2 {
+    font-family: 'DM Serif Display', serif; font-size: 24px; font-weight: 400;
+    margin-bottom: 6px; color: var(--accent);
+  }
+  .ranking-section .subtitle {
+    font-size: 11px; color: var(--muted); letter-spacing: 0.06em;
+    text-transform: uppercase; margin-bottom: 22px;
+  }
+  .ranking-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 10px;
+  }
+  .ranking-card {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 14px 16px;
+    transition: border-color 0.2s, transform 0.2s;
+  }
+  .ranking-card:hover { transform: translateY(-2px); border-color: var(--muted); }
+  .ranking-card.top-pick {
+    background: var(--green-dim);
+    border-color: rgba(93,186,120,0.4);
+  }
+  .ranking-card.top-pick:hover { border-color: var(--green); }
+  .ranking-card-rank {
+    font-size: 10px; color: var(--muted);
+    letter-spacing: 0.1em; text-transform: uppercase;
+  }
+  .ranking-card.top-pick .ranking-card-rank { color: var(--green); font-weight: 500; }
+  .ranking-card-dates {
+    font-size: 15px; color: var(--text);
+    margin: 5px 0 7px; font-weight: 500;
+  }
+  .ranking-card.top-pick .ranking-card-dates { color: var(--green); }
+  .ranking-card-note { font-size: 11px; color: var(--muted); line-height: 1.5; }
+  .no-windows {
+    font-size: 12px; color: var(--muted); font-style: italic;
+    padding: 14px 0; text-align: center;
+  }
+
+  footer { text-align: center; margin-top: 56px; color: var(--muted); font-size: 11px; letter-spacing: 0.06em; }
+
+  .toast {
+    position: fixed; bottom: 28px; left: 50%;
+    transform: translateX(-50%) translateY(60px);
+    font-size: 12px; font-weight: 500; letter-spacing: 0.06em;
+    padding: 10px 22px; border-radius: 100px; z-index: 999;
+    transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1), opacity 0.3s;
+    opacity: 0; pointer-events: none; font-family: 'DM Mono', monospace;
+    background: var(--green); color: #0e0e0e;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+  .toast.error { background: var(--red); color: #fff; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>GI Joe & <em>Jane's</em> Availability</h1>
+  <p>Live sync · everyone's entries save instantly</p>
+  <div class="sync-status">
+    <div class="sync-dot" id="sync-dot"></div>
+    <span id="sync-label">Connecting...</span>
+  </div>
+</header>
+
+<div class="year-selector"><div class="year-selector-inner" id="year-selector"></div></div>
+
+<!-- RANKING SECTION (moved to top) -->
+<div class="ranking-section">
+  <h2>✦ Top 5 Trip Windows</h2>
+  <div id="ranking-content"></div>
+</div>
+
+<!-- ADD PANEL -->
+<div class="add-panel">
+  <div class="add-panel-header open" id="panel-toggle">
+    <h2>✦ Add Your Dates</h2>
+    <span class="toggle-icon">+</span>
+  </div>
+  <div class="add-panel-body open" id="panel-body">
+    <div class="form-row">
+      <div class="form-group">
+        <label>Your Name</label>
+        <select id="f-name">
+          <option value="">— select —</option>
+          <option>Anan</option>
+          <option>Krishna</option>
+          <option>Prem</option>
+          <option>Nishtha</option>
+          <option>Nihar</option>
+          <option>Neel</option>
+          <option>Kishan</option>
+          <option>Dhanvi</option>
+          <option>Dev</option>
+          <option>Fanny</option>
+          <option>Vishesh</option>
+          <option>Neha</option>
+          <option>Pratik</option>
+          <option>Nidhi</option>
+          <option>Yugant</option>
+          <option>Pooja</option>
+          <option>Harsh</option>
+          <option>Yogesh</option>
+          <option>Vini</option>
+          <option>Kans</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Reason / Event</label>
+        <input type="text" id="f-reason" placeholder="e.g. Wedding in NJ" maxlength="60">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Start Date</label>
+        <input type="date" id="f-start">
+      </div>
+      <div class="form-group">
+        <label>End Date <span style="color:var(--muted);font-size:9px">(blank if single day)</span></label>
+        <input type="date" id="f-end">
+      </div>
+    </div>
+    <button class="submit-btn" id="submit-btn">Add to Calendar</button>
+
+    <div class="entry-list" id="entry-list">
+      <div class="entry-list-header">
+        <span class="entry-list-title">Submitted entries</span>
+        <span class="entry-count" id="entry-count"></span>
+      </div>
+      <div class="loading-entries" id="loading-entries">Loading entries...</div>
+      <div class="no-entries" id="no-entries" style="display:none">No entries yet — add yours above!</div>
+    </div>
+  </div>
+</div>
+
+<!-- LEGEND -->
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div> Open weekend</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--yellow)"></div> Some conflicts</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--red)"></div> Heavy conflicts</div>
+  <div class="legend-item"><div class="legend-dot" style="background:transparent;border:1px dashed var(--blue)"></div> Federal holiday</div>
+</div>
+
+<div id="cal-root" class="months-grid"></div>
+
+<div class="toast" id="toast"></div>
+
+<footer>built for the squad · persistent across years</footer>
+
+<!-- Firebase -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getFirestore, collection, addDoc, deleteDoc, doc, onSnapshot, serverTimestamp, query, orderBy }
+  from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCIn2pYzGXxDw_oc3dVt75ctfoLA7BkUMM",
+  authDomain: "squad-availability.firebaseapp.com",
+  projectId: "squad-availability",
+  storageBucket: "squad-availability.firebasestorage.app",
+  messagingSenderId: "68592827918",
+  appId: "1:68592827918:web:13afa5d6ab6d451c14c65f"
+};
+
+const app = initializeApp(firebaseConfig);
+const db  = getFirestore(app);
+
+const MONTH_NAMES = ['January','February','March','April','May','June',
+                     'July','August','September','October','November','December'];
+const DAY_LABELS  = ['Su','Mo','Tu','We','Th','Fr','Sa'];
+
+// ─── CURRENT YEAR STATE ──────────────────────────────────────────────────────
+let currentYear = new Date().getFullYear();
+const today = new Date(); // real today
+
+// ─── GROUP-WIDE BUSY DATES (preloaded, apply every year) ─────────────────────
+// These are fixed events every year - only the 2026 specific ones
+const GROUP_BUSY_2026 = [
+  { name: 'Group', start: [2026, 5, 6],  end: [2026, 5, 10], label: "Dev Modi's Wedding", group: true },
+  { name: 'Group', start: [2026, 6, 19], end: [2026, 6, 20], label: "Pratik and Nidhi's Engagement", group: true },
+  { name: 'Group', start: [2026, 7, 11], end: [2026, 7, 12], label: "Vishesh and Neha's Engagement", group: true },
+];
+
+// ─── US FEDERAL HOLIDAYS ─────────────────────────────────────────────────────
+// Calculates federal holidays for any given year
+function nthWeekdayOfMonth(year, month, weekday, n) {
+  // month 1-12, weekday 0-6 (Sun=0), n = 1..5
+  const first = new Date(year, month-1, 1);
+  const offset = (weekday - first.getDay() + 7) % 7;
+  return 1 + offset + (n-1) * 7;
+}
+function lastWeekdayOfMonth(year, month, weekday) {
+  const dim = new Date(year, month, 0).getDate();
+  const last = new Date(year, month-1, dim);
+  const offset = (last.getDay() - weekday + 7) % 7;
+  return dim - offset;
+}
+
+function getFederalHolidays(year) {
+  return [
+    { date: [year,1,1],                                 name: "New Year's Day" },
+    { date: [year,1,nthWeekdayOfMonth(year,1,1,3)],     name: "MLK Jr. Day" },
+    { date: [year,2,nthWeekdayOfMonth(year,2,1,3)],     name: "Presidents' Day" },
+    { date: [year,5,lastWeekdayOfMonth(year,5,1)],      name: "Memorial Day" },
+    { date: [year,6,19],                                name: "Juneteenth" },
+    { date: [year,7,4],                                 name: "Independence Day" },
+    { date: [year,9,nthWeekdayOfMonth(year,9,1,1)],     name: "Labor Day" },
+    { date: [year,10,nthWeekdayOfMonth(year,10,1,2)],   name: "Columbus Day" },
+    { date: [year,11,11],                               name: "Veterans Day" },
+    { date: [year,11,nthWeekdayOfMonth(year,11,4,4)],   name: "Thanksgiving" },
+    { date: [year,12,25],                               name: "Christmas" },
+  ];
+}
+
+// ─── STATE ───────────────────────────────────────────────────────────────────
+let userEntries  = []; // from Firestore
+let conflictMap  = {};
+let holidayMap   = {};
+
+function buildMaps(year) {
+  conflictMap = {};
+  holidayMap  = {};
+
+  // Holidays for this year
+  getFederalHolidays(year).forEach(h => {
+    holidayMap[`${h.date[0]}-${h.date[1]}-${h.date[2]}`] = h.name;
+  });
+
+  // Combined busy list: group busy (only 2026 for now) + user entries
+  const all = [
+    ...GROUP_BUSY_2026.map(g => ({
+      m: g.name, s: g.start, e: g.end, label: g.label, group: true
+    })),
+    ...userEntries.map(e => ({
+      m: e.name, s: e.start, e: e.end, label: e.label, userAdded: true
+    }))
+  ];
+
+  for (const r of all) {
+    const start = new Date(r.s[0], r.s[1]-1, r.s[2]);
+    const end   = new Date(r.e[0], r.e[1]-1, r.e[2]);
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate()+1)) {
+      if (d.getFullYear() !== year) continue;
+      const key = `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`;
+      if (!conflictMap[key]) conflictMap[key] = [];
+      conflictMap[key].push({
+        member: r.m, label: r.label,
+        userAdded: !!r.userAdded, group: !!r.group
+      });
+    }
+  }
+}
+
+function getConflicts(y, mo, d) { return conflictMap[`${y}-${mo}-${d}`] || []; }
+function getHoliday(y, mo, d)   { return holidayMap[`${y}-${mo}-${d}`]   || null; }
+
+// ─── CALENDAR RENDER ─────────────────────────────────────────────────────────
+function compressDays(days) {
+  days = [...new Set(days)].sort((a,b)=>a-b);
+  const ranges=[]; let s=days[0],e=days[0];
+  for(let i=1;i<days.length;i++){
+    if(days[i]===e+1){e=days[i];}
+    else{ranges.push(s===e?`${s}`:`${s}–${e}`);s=e=days[i];}
+  }
+  ranges.push(s===e?`${s}`:`${s}–${e}`);
+  return ranges.join(', ');
+}
+
+function getOpenWeekends(year, month) {
+  const open=[], dim=new Date(year,month,0).getDate();
+  for(let day=1;day<=dim;day++){
+    if(new Date(year,month-1,day).getDay()===6){
+      if(getConflicts(year,month,day).length===0 &&
+         (day+1>dim||getConflicts(year,month,day+1).length===0))
+        open.push({sat:day,sun:day+1});
+    }
+  }
+  return open;
+}
+
+function renderMonth(year, month) {
+  const card=document.createElement('div'); card.className='month-card';
+  const openW=getOpenWeekends(year,month);
+  const hdr=document.createElement('div'); hdr.className='month-header';
+  hdr.innerHTML=`<span class="month-name">${MONTH_NAMES[month-1]}</span><span class="month-year">${year}</span>`;
+  if(openW.length){
+    const b=document.createElement('span'); b.className='open-badge';
+    b.textContent=`${openW.length} open wknd${openW.length>1?'s':''}`;
+    hdr.appendChild(b);
+  }
+  card.appendChild(hdr);
+  const body=document.createElement('div'); body.className='month-body';
+  const grid=document.createElement('div'); grid.className='cal-grid';
+  DAY_LABELS.forEach(d=>{const l=document.createElement('div');l.className='cal-day-label';l.textContent=d;grid.appendChild(l);});
+  const firstDay=new Date(year,month-1,1).getDay();
+  const dim=new Date(year,month,0).getDate();
+  for(let i=0;i<firstDay;i++){const c=document.createElement('div');c.className='cal-day empty';grid.appendChild(c);}
+
+  for(let day=1;day<=dim;day++){
+    const conflicts=getConflicts(year,month,day);
+    const holiday=getHoliday(year,month,day);
+    const cell=document.createElement('div');
+    const isToday=(year===today.getFullYear()&&month===today.getMonth()+1&&day===today.getDate());
+    const dow=new Date(year,month-1,day).getDay();
+
+    let cls='cal-day free';
+    if(conflicts.length===0&&(dow===0||dow===6)) cls='cal-day open-weekend';
+    else if(conflicts.length>=3) cls='cal-day busy';
+    else if(conflicts.length>0) cls='cal-day partial';
+    if(holiday) cls+=' holiday';
+    if(isToday) cls+=' today';
+    cell.className=cls; cell.textContent=day;
+
+    const titleParts=[];
+    if(holiday) titleParts.push(`🎌 ${holiday}`);
+    if(conflicts.length>0)
+      titleParts.push(...conflicts.map(c=>`${c.member}: ${c.label}`));
+    if(titleParts.length) cell.title=titleParts.join('\n');
+    grid.appendChild(cell);
+  }
+  body.appendChild(grid);
+
+  // Breakdown
+  const mc={};
+  for(let day=1;day<=dim;day++)
+    for(const c of getConflicts(year,month,day)){
+      const k=`${c.member}|||${c.label}`;
+      if(!mc[k]) mc[k]={...c,days:[]};
+      mc[k].days.push(day);
+    }
+  const entries=Object.values(mc);
+  if(entries.length){
+    const cList=document.createElement('div'); cList.className='conflict-list';
+    const byM={};
+    for(const e of entries){if(!byM[e.member])byM[e.member]=[];byM[e.member].push(e);}
+    for(const[member,evts] of Object.entries(byM)){
+      const row=document.createElement('div'); row.className='conflict-row';
+      const ne=document.createElement('div'); ne.className='conflict-name'; ne.textContent=member; row.appendChild(ne);
+      const ee=document.createElement('div'); ee.className='conflict-event';
+      ee.innerHTML=evts.map(e=>{
+        const dStr=compressDays(e.days);
+        const tag = e.group ? '<span class="tag-group">group</span>'
+                  : e.userAdded ? '<span class="tag-user">added</span>'
+                  : '<span class="tag-busy">busy</span>';
+        return `${tag}${dStr} — ${e.label}`;
+      }).join('<br>');
+      row.appendChild(ee); cList.appendChild(row);
+    }
+    body.appendChild(cList);
+  }
+  card.appendChild(body);
+  return card;
+}
+
+function renderCalendar() {
+  buildMaps(currentYear);
+  const root=document.getElementById('cal-root'); root.innerHTML='';
+  for (let m = 1; m <= 12; m++) {
+    root.appendChild(renderMonth(currentYear, m));
+  }
+  renderRanking(currentYear);
+}
+
+// ─── RANKING: find best trip windows ─────────────────────────────────────────
+// Find contiguous runs of all-clear days, then generate candidate windows
+// of lengths 6-14 days. Windows are scored by how many weekends + holidays they cover.
+function findOpenRuns(year) {
+  const runs = [];
+  const startDate = new Date(year, 0, 1);
+  const endDate   = new Date(year, 11, 31);
+  const msDay = 86400000;
+
+  let runStart = null;
+  let cur = new Date(startDate);
+  while (cur <= endDate) {
+    const conflicts = getConflicts(cur.getFullYear(), cur.getMonth()+1, cur.getDate());
+    if (conflicts.length === 0) {
+      if (!runStart) runStart = new Date(cur);
+    } else {
+      if (runStart) {
+        runs.push({ start: runStart, end: new Date(cur.getTime() - msDay) });
+        runStart = null;
+      }
+    }
+    cur = new Date(cur.getTime() + msDay);
+  }
+  if (runStart) runs.push({ start: runStart, end: endDate });
+  return runs;
+}
+
+function findCandidateWindows(year, minLen=6, maxLen=14) {
+  const runs = findOpenRuns(year);
+  const msDay = 86400000;
+  const windows = [];
+
+  for (const run of runs) {
+    const runLen = Math.floor((run.end - run.start) / msDay) + 1;
+    if (runLen < minLen) continue;
+
+    // Generate windows of varying lengths within this run
+    for (let len = minLen; len <= Math.min(maxLen, runLen); len++) {
+      for (let offset = 0; offset + len <= runLen; offset++) {
+        const s = new Date(run.start.getTime() + offset * msDay);
+        const e = new Date(run.start.getTime() + (offset + len - 1) * msDay);
+        windows.push({ start: s, end: e, length: len });
+      }
+    }
+  }
+  return windows;
+}
+
+function scoreWindow(w) {
+  // Count weekends covered (each full Sat+Sun pair = 1 weekend)
+  // Count holidays covered
+  // Categorize: multi-weekend, weekend, holiday, weekday
+  const msDay = 86400000;
+  let weekendCount = 0;
+  let holidayCount = 0;
+  const holidayNames = [];
+
+  // Walk through days and count Sat-Sun pairs
+  for (let t = w.start.getTime(); t < w.end.getTime(); t += msDay) {
+    const d = new Date(t);
+    if (d.getDay() === 6) {
+      const next = new Date(t + msDay);
+      if (next <= w.end && next.getDay() === 0) weekendCount++;
+    }
+  }
+  // Count holidays
+  for (let t = w.start.getTime(); t <= w.end.getTime(); t += msDay) {
+    const d = new Date(t);
+    const h = getHoliday(d.getFullYear(), d.getMonth()+1, d.getDate());
+    if (h) { holidayCount++; holidayNames.push(h); }
+  }
+
+  // Tier: lower = better
+  // 1: covers 2+ weekends (always best)
+  // 2: covers 1 weekend
+  // 3: covers a holiday but no full weekend
+  // 4: weekday-only
+  let tier, category;
+  if (weekendCount >= 2) {
+    tier = 1;
+    category = `${weekendCount} weekends${holidayCount ? ' + holiday' : ''}`;
+  } else if (weekendCount === 1) {
+    tier = 2;
+    category = holidayCount ? 'Weekend + holiday' : 'Weekend coverage';
+  } else if (holidayCount >= 1) {
+    tier = 3;
+    category = holidayNames[0];
+  } else {
+    tier = 4;
+    category = 'Weekday only';
+  }
+
+  return { tier, category, weekendCount, holidayCount, holidayNames };
+}
+
+function dedupeWindows(scored) {
+  // When many overlapping windows exist within the same open run, keep only
+  // the single best one per contiguous run. Group by run (consecutive overlap)
+  // and pick the best-tier + longest + earliest.
+  const sorted = [...scored].sort((a, b) => a.start - b.start);
+  const groups = [];
+  let currentGroup = null;
+
+  for (const w of sorted) {
+    if (!currentGroup) {
+      currentGroup = { start: w.start, end: w.end, items: [w] };
+    } else if (w.start <= currentGroup.end) {
+      // overlaps with current group
+      currentGroup.items.push(w);
+      if (w.end > currentGroup.end) currentGroup.end = w.end;
+    } else {
+      groups.push(currentGroup);
+      currentGroup = { start: w.start, end: w.end, items: [w] };
+    }
+  }
+  if (currentGroup) groups.push(currentGroup);
+
+  // From each group, pick the best window
+  const winners = groups.map(g => {
+    // best = lowest tier, then most weekends, then most holidays, then longest, then earliest
+    g.items.sort((a, b) =>
+      (a.tier - b.tier)
+      || (b.weekendCount - a.weekendCount)
+      || (b.holidayCount - a.holidayCount)
+      || (b.length - a.length)
+      || (a.start - b.start)
+    );
+    return g.items[0];
+  });
+
+  return winners;
+}
+
+function fmtWindow(w) {
+  const s = w.start, e = w.end;
+  const sStr = `${MONTH_NAMES[s.getMonth()].slice(0,3)} ${s.getDate()}`;
+  const eStr = s.getMonth() === e.getMonth()
+    ? `${e.getDate()}`
+    : `${MONTH_NAMES[e.getMonth()].slice(0,3)} ${e.getDate()}`;
+  return `${sStr}–${eStr}`;
+}
+
+function renderRanking(year) {
+  const container = document.getElementById('ranking-content');
+  container.innerHTML = '';
+
+  const candidates = findCandidateWindows(year, 6, 7);
+  const scored = candidates.map(w => ({ ...w, ...scoreWindow(w) }));
+  let best = dedupeWindows(scored);
+
+  // Filter out past windows (if viewing current year)
+  const now = new Date();
+  if (year === now.getFullYear()) {
+    best = best.filter(w => w.end >= now);
+  }
+
+  // Sort winners by tier, then most weekends, then most holidays, then earliest
+  best.sort((a, b) =>
+    (a.tier - b.tier)
+    || (b.weekendCount - a.weekendCount)
+    || (b.holidayCount - a.holidayCount)
+    || (a.start - b.start)
+  );
+
+  const top5 = best.slice(0, 5);
+
+  if (top5.length === 0) {
+    const none = document.createElement('div');
+    none.className = 'no-windows';
+    none.textContent = `No open trip windows found for ${year}. Add more entries or try a different year.`;
+    container.appendChild(none);
+    return;
+  }
+
+  const list = document.createElement('div');
+  list.className = 'ranking-list';
+
+  top5.forEach((w, i) => {
+    const card = document.createElement('div');
+    card.className = 'ranking-card' + (i === 0 ? ' top-pick' : '');
+
+    const noteParts = [`${w.length} days`, w.category];
+    const rankLabel = i === 0 ? '🏆 #1 Top pick' : `#${i+1}`;
+
+    card.innerHTML = `
+      <div class="ranking-card-rank">${rankLabel}</div>
+      <div class="ranking-card-dates">${fmtWindow(w)}</div>
+      <div class="ranking-card-note">${noteParts.join(' · ')}</div>
+    `;
+    list.appendChild(card);
+  });
+
+  container.appendChild(list);
+}
+
+// ─── YEAR SELECTOR ───────────────────────────────────────────────────────────
+function renderYearSelector() {
+  const el = document.getElementById('year-selector');
+  el.innerHTML = '';
+  const currentCalYear = today.getFullYear();
+  // Show current year + 6 years ahead (scrollable)
+  const years = [];
+  for (let y = currentCalYear; y <= currentCalYear + 6; y++) years.push(y);
+
+  years.forEach(y => {
+    const btn = document.createElement('button');
+    btn.className = 'year-btn' + (y === currentYear ? ' active' : '');
+    btn.textContent = y;
+    btn.addEventListener('click', () => {
+      currentYear = y;
+      renderYearSelector();
+      renderCalendar();
+      // Scroll the active button into view
+      setTimeout(() => {
+        const active = document.querySelector('.year-btn.active');
+        if (active) active.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+      }, 50);
+    });
+    el.appendChild(btn);
+  });
+}
+
+// ─── TOAST ───────────────────────────────────────────────────────────────────
+function showToast(msg, isError=false) {
+  const t=document.getElementById('toast');
+  t.textContent=msg;
+  t.classList.toggle('error',isError);
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2600);
+}
+
+// ─── ENTRY LIST UI ───────────────────────────────────────────────────────────
+function fmtDate([y,m,d]){return `${MONTH_NAMES[m-1].slice(0,3)} ${d}, ${y}`;}
+
+function renderEntryList() {
+  const list=document.getElementById('entry-list');
+  const noEl=document.getElementById('no-entries');
+  const loadEl=document.getElementById('loading-entries');
+  const countEl=document.getElementById('entry-count');
+  loadEl.style.display='none';
+  list.querySelectorAll('.entry-item').forEach(el=>el.remove());
+
+  if(!userEntries.length){
+    noEl.style.display='block';
+    countEl.textContent='';
+    return;
+  }
+  noEl.style.display='none';
+  countEl.textContent=`${userEntries.length} entr${userEntries.length===1?'y':'ies'}`;
+
+  const sorted=[...userEntries].sort((a,b)=>{
+    const ta=a.start[0]*10000+a.start[1]*100+a.start[2];
+    const tb=b.start[0]*10000+b.start[1]*100+b.start[2];
+    return ta-tb;
+  });
+
+  sorted.forEach(entry=>{
+    const item=document.createElement('div'); item.className='entry-item';
+    const s=entry.start, e=entry.end;
+    const same=s[0]===e[0]&&s[1]===e[1]&&s[2]===e[2];
+    const dateStr=same?fmtDate(s):`${fmtDate(s)} – ${fmtDate(e)}`;
+    item.innerHTML=`
+      <div class="entry-info">
+        <div class="entry-name">${entry.name}</div>
+        <div class="entry-dates">${dateStr}</div>
+        <div class="entry-reason">${entry.label}</div>
+      </div>
+      <button class="entry-remove" data-id="${entry.firestoreId}">remove</button>`;
+    item.querySelector('.entry-remove').addEventListener('click', async () => {
+      try {
+        await deleteDoc(doc(db, 'entries', entry.firestoreId));
+      } catch(err) {
+        console.error(err);
+        showToast('⚠ Could not remove entry', true);
+      }
+    });
+    list.appendChild(item);
+  });
+}
+
+// ─── INITIAL RENDER (before Firebase so UI shows immediately) ────────────────
+renderYearSelector();
+renderCalendar();
+
+// Scroll active year into view after initial render
+setTimeout(() => {
+  const active = document.querySelector('.year-btn.active');
+  if (active) active.scrollIntoView({ behavior: 'instant', inline: 'center', block: 'nearest' });
+}, 100);
+
+// ─── FIRESTORE LIVE LISTENER ─────────────────────────────────────────────────
+const dot   = document.getElementById('sync-dot');
+const label = document.getElementById('sync-label');
+
+// Set loading state immediately
+label.textContent = 'Connecting...';
+
+try {
+  const q = query(collection(db,'entries'), orderBy('createdAt','asc'));
+  onSnapshot(q,
+    (snapshot) => {
+      userEntries = snapshot.docs.map(d => ({
+        firestoreId: d.id,
+        ...d.data()
+      }));
+      dot.className = 'sync-dot live';
+      label.textContent = 'Live — synced';
+      renderEntryList();
+      renderCalendar();
+    },
+    (err) => {
+      console.error('Firestore listener error:', err);
+      dot.className = 'sync-dot error';
+      label.textContent = 'Sync error — using local data';
+      document.getElementById('loading-entries').style.display = 'none';
+      document.getElementById('no-entries').style.display = 'block';
+    }
+  );
+} catch (err) {
+  console.error('Firebase init error:', err);
+  dot.className = 'sync-dot error';
+  label.textContent = 'Offline mode';
+  document.getElementById('loading-entries').style.display = 'none';
+  document.getElementById('no-entries').style.display = 'block';
+}
+
+// ─── FORM SUBMIT ─────────────────────────────────────────────────────────────
+document.getElementById('submit-btn').addEventListener('click', async () => {
+  const name   = document.getElementById('f-name').value.trim();
+  const reason = document.getElementById('f-reason').value.trim();
+  const startV = document.getElementById('f-start').value;
+  const endV   = document.getElementById('f-end').value;
+
+  if(!name)  { showToast('⚠ Please select your name', true); return; }
+  if(!startV){ showToast('⚠ Please pick a start date', true); return; }
+  if(!reason){ showToast('⚠ Please add a reason', true); return; }
+
+  const endFinal = endV || startV;
+  const ps = startV.split('-').map(Number);
+  const pe = endFinal.split('-').map(Number);
+  const toN = ([y,m,d]) => y*10000+m*100+d;
+  if(toN(pe) < toN(ps)){ showToast('⚠ End date must be after start date', true); return; }
+
+  const btn = document.getElementById('submit-btn');
+  btn.disabled = true;
+  btn.textContent = 'Saving...';
+
+  try {
+    await addDoc(collection(db,'entries'), {
+      name, label: reason,
+      start: ps, end: pe,
+      createdAt: serverTimestamp()
+    });
+    document.getElementById('f-name').value   = '';
+    document.getElementById('f-reason').value = '';
+    document.getElementById('f-start').value  = '';
+    document.getElementById('f-end').value    = '';
+    showToast(`✓ ${name}'s dates saved for everyone!`);
+  } catch(err) {
+    console.error(err);
+    showToast('⚠ Save failed — check your connection', true);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Add to Calendar';
+  }
+});
+
+// Panel toggle
+document.getElementById('panel-toggle').addEventListener('click',()=>{
+  document.getElementById('panel-toggle').classList.toggle('open');
+  document.getElementById('panel-body').classList.toggle('open');
+});
+</script>
+</body>
+</html>
