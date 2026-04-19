@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trip Planner — Squad Availability</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@300;400;500&display=swap');
+
+  :root {
+    --bg: #0e0e0e;
+    --surface: #161616;
+    --surface2: #1c1c1c;
+    --border: #2a2a2a;
+    --text: #e8e4dc;
+    --muted: #6b6460;
+    --accent: #c8b560;
+    --accent-dim: rgba(200,181,96,0.12);
+    --green: #5dba78;
+    --green-dim: rgba(93,186,120,0.15);
+    --red: #e05c5c;
+    --red-dim: rgba(224,92,92,0.13);
+    --yellow: #e8a84a;
+    --yellow-dim: rgba(232,168,74,0.13);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    min-height: 100vh;
+    padding: 40px 24px 80px;
+  }
+
+  header { text-align: center; margin-bottom: 40px; }
+  header h1 {
+    font-family: 'DM Serif Display', serif;
+    font-size: clamp(26px, 5vw, 46px);
+    font-weight: 400;
+    letter-spacing: -0.5px;
+    color: var(--text);
+    line-height: 1.1;
+  }
+  header h1 em { color: var(--accent); font-style: italic; }
+  header p {
+    color: var(--muted);
+    margin-top: 10px;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  /* ADD PANEL */
+  .add-panel {
+    max-width: 700px;
+    margin: 0 auto 48px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+  .add-panel-header {
+    padding: 16px 22px;
+    border-bottom: 1px solid transparent;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    user-select: none;
+    transition: border-color 0.2s;
+  }
+  .add-panel-header.open { border-bottom-color: var(--border); }
+  .add-panel-header h2 {
+    font-family: 'DM Serif Display', serif;
+    font-size: 17px;
+    font-weight: 400;
+    color: var(--accent);
+  }
+  .toggle-icon {
+    font-size: 20px;
+    color: var(--muted);
+    transition: transform 0.3s;
+    line-height: 1;
+  }
+  .add-panel-header.open .toggle-icon { transform: rotate(45deg); }
+
+  .add-panel-body {
+    display: none;
+    padding: 22px;
+    gap: 16px;
+    flex-direction: column;
+  }
+  .add-panel-body.open { display: flex; }
+
+  .form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  @media (max-width: 520px) { .form-row { grid-template-columns: 1fr; } }
+
+  .form-group { display: flex; flex-direction: column; gap: 6px; }
+  .form-group label {
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .form-group select,
+  .form-group input[type="date"],
+  .form-group input[type="text"] {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    padding: 9px 12px;
+    outline: none;
+    width: 100%;
+    transition: border-color 0.2s;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  .form-group select:focus,
+  .form-group input:focus { border-color: var(--accent); }
+  .form-group select option { background: #1c1c1c; }
+
+  .submit-btn {
+    background: var(--accent);
+    color: #0e0e0e;
+    border: none;
+    border-radius: 8px;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 11px 24px;
+    cursor: pointer;
+    transition: opacity 0.2s, transform 0.1s;
+    align-self: flex-start;
+  }
+  .submit-btn:hover { opacity: 0.85; }
+  .submit-btn:active { transform: scale(0.97); }
+
+  .entry-list { border-top: 1px solid var(--border); margin-top: 4px; }
+  .entry-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 9px 0;
+    border-bottom: 1px solid #1e1e1e;
+    gap: 10px;
+    animation: fadeIn 0.25s ease;
+  }
+  @keyframes fadeIn {
+    from { opacity:0; transform:translateY(-4px); }
+    to   { opacity:1; transform:translateY(0); }
+  }
+  .entry-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .entry-name { font-size: 11px; color: var(--accent); text-transform: uppercase; letter-spacing: 0.06em; }
+  .entry-dates { font-size: 12px; color: var(--text); }
+  .entry-reason { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .entry-remove {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    color: var(--muted);
+    font-size: 11px;
+    padding: 3px 9px;
+    cursor: pointer;
+    flex-shrink: 0;
+    font-family: 'DM Mono', monospace;
+    transition: all 0.15s;
+  }
+  .entry-remove:hover { border-color: var(--red); color: var(--red); }
+  .no-entries {
+    font-size: 11px; color: var(--muted);
+    padding: 14px 0 4px; text-align: center; letter-spacing: 0.04em;
+  }
+
+  /* LEGEND */
+  .legend { display: flex; gap: 20px; justify-content: center; flex-wrap: wrap; margin-bottom: 32px; }
+  .legend-item { display: flex; align-items: center; gap: 7px; font-size: 11px; color: var(--muted); letter-spacing: 0.05em; text-transform: uppercase; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+
+  /* CALENDAR */
+  .months-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 20px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  .month-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .month-header { padding: 13px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: baseline; gap: 10px; }
+  .month-name { font-family: 'DM Serif Display', serif; font-size: 19px; font-weight: 400; }
+  .month-year { font-size: 11px; color: var(--muted); letter-spacing: 0.08em; }
+  .open-badge {
+    margin-left: auto; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;
+    padding: 3px 10px; border-radius: 100px;
+    background: var(--green-dim); color: var(--green); border: 1px solid rgba(93,186,120,0.25);
+  }
+  .month-body { padding: 14px 18px; }
+  .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; margin-bottom: 14px; }
+  .cal-day-label { text-align: center; font-size: 9px; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; padding: 4px 0 6px; }
+  .cal-day {
+    aspect-ratio: 1; display: flex; align-items: center; justify-content: center;
+    font-size: 11px; border-radius: 4px; position: relative; cursor: default; transition: filter 0.15s;
+  }
+  .cal-day.empty { background: transparent; }
+  .cal-day.free  { color: var(--text); }
+  .cal-day.busy  { background: var(--red-dim); color: var(--red); font-weight: 500; }
+  .cal-day.partial { background: var(--yellow-dim); color: var(--yellow); }
+  .cal-day.open-weekend { background: var(--green-dim); color: var(--green); font-weight: 500; outline: 1px solid rgba(93,186,120,0.3); }
+  .cal-day.today { outline: 1.5px solid var(--accent) !important; color: var(--accent); }
+  .cal-day:not(.empty):hover { filter: brightness(1.35); }
+
+  .conflict-list { border-top: 1px solid var(--border); padding-top: 10px; }
+  .conflict-row { display: flex; align-items: flex-start; gap: 8px; padding: 4px 0; border-bottom: 1px solid #1e1e1e; }
+  .conflict-row:last-child { border-bottom: none; }
+  .conflict-name { color: var(--muted); min-width: 64px; font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; padding-top: 1px; flex-shrink: 0; }
+  .conflict-event { font-size: 11px; color: var(--text); line-height: 1.6; }
+  .tag-busy { display:inline-block; background:var(--red-dim); color:var(--red); border-radius:3px; font-size:9px; padding:1px 5px; margin-right:4px; }
+  .tag-user { display:inline-block; background:var(--accent-dim); color:var(--accent); border-radius:3px; font-size:9px; padding:1px 5px; margin-right:4px; }
+
+  /* OPEN WINDOWS */
+  .open-windows { max-width: 1200px; margin: 36px auto 0; padding: 24px 26px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; }
+  .open-windows h2 { font-family: 'DM Serif Display', serif; font-size: 20px; font-weight: 400; margin-bottom: 14px; color: var(--accent); }
+  .window-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
+  .window-card { background: var(--green-dim); border: 1px solid rgba(93,186,120,0.2); border-radius: 8px; padding: 12px 14px; }
+  .window-dates { font-size: 13px; color: var(--green); font-weight: 500; margin-bottom: 3px; }
+  .window-note  { font-size: 11px; color: var(--muted); }
+
+  .caveat { max-width: 1200px; margin: 16px auto 0; font-size: 11px; color: var(--muted); line-height: 1.7; padding: 0 4px; }
+  .caveat span { color: var(--yellow); }
+
+  footer { text-align: center; margin-top: 56px; color: var(--muted); font-size: 11px; letter-spacing: 0.06em; }
+
+  .toast {
+    position: fixed; bottom: 28px; left: 50%;
+    transform: translateX(-50%) translateY(60px);
+    background: var(--green); color: #0e0e0e;
+    font-size: 12px; font-weight: 500; letter-spacing: 0.06em;
+    padding: 10px 22px; border-radius: 100px; z-index: 999;
+    transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1), opacity 0.3s;
+    opacity: 0; pointer-events: none; font-family: 'DM Mono', monospace;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+  .toast.error { background: var(--red); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Squad <em>Availability</em> 2026</h1>
+  <p>Hover over dates for conflict details · Green = everyone open</p>
+</header>
+
+<!-- ADD DATES PANEL -->
+<div class="add-panel">
+  <div class="add-panel-header open" id="panel-toggle">
+    <h2>✦ Add Your Dates</h2>
+    <span class="toggle-icon">+</span>
+  </div>
+  <div class="add-panel-body open" id="panel-body">
+    <div class="form-row">
+      <div class="form-group">
+        <label>Your Name</label>
+        <select id="f-name">
+          <option value="">— select —</option>
+          <option>Anan</option>
+          <option>Krishna</option>
+          <option>Prem</option>
+          <option>Nishtha</option>
+          <option>Nihar</option>
+          <option>Neel</option>
+          <option>Kishan</option>
+          <option>Dhanvi</option>
+          <option>Dev</option>
+          <option>Fanny</option>
+          <option>Vishesh</option>
+          <option>Neha</option>
+          <option>Pratik</option>
+          <option>Nidhi</option>
+          <option>Yugant</option>
+          <option>Pooja</option>
+          <option>Harsh</option>
+          <option>Yogesh</option>
+          <option>Vini</option>
+          <option>Kans</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Reason / Event</label>
+        <input type="text" id="f-reason" placeholder="e.g. Wedding in NJ" maxlength="60">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Start Date</label>
+        <input type="date" id="f-start" min="2026-04-01" max="2026-12-31">
+      </div>
+      <div class="form-group">
+        <label>End Date <span style="color:var(--muted);font-size:9px">(leave blank if single day)</span></label>
+        <input type="date" id="f-end" min="2026-04-01" max="2026-12-31">
+      </div>
+    </div>
+    <button class="submit-btn" id="submit-btn">Add to Calendar</button>
+
+    <div class="entry-list" id="entry-list">
+      <div class="no-entries" id="no-entries">No entries yet — add yours above!</div>
+    </div>
+  </div>
+</div>
+
+<!-- LEGEND -->
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div> All clear</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--yellow)"></div> Some conflicts</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--red)"></div> Heavy conflicts</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--accent)"></div> Today · <span style="color:var(--accent)">User added</span></div>
+</div>
+
+<div id="cal-root" class="months-grid"></div>
+
+<div class="open-windows">
+  <h2>✦ Best Windows for a Trip</h2>
+  <div id="open-windows-list" class="window-list"></div>
+</div>
+
+<p class="caveat">
+  <span>⚠ Notes:</span> Kans — "Modis in May" blocks all of May (no specific dates).
+  Sep 1–14 blocked group-wide (Bapa in Paris). Harsh first-week-Aug flagged approximate.
+  Yugant Aug 18-15 entry skipped — dates appear flipped, awaiting clarification.
+</p>
+
+<div class="toast" id="toast"></div>
+
+<footer>built for the squad · 2026</footer>
+
+<script>
+const MONTH_NAMES = ['January','February','March','April','May','June',
+                     'July','August','September','October','November','December'];
+
+// ─── STATIC DATA ─────────────────────────────────────────────────────────────
+const STATIC_RANGES = [
+  // ANAN
+  {m:'Anan', s:[2026,5,7],   e:[2026,5,17],  label:'South of France'},
+  {m:'Anan', s:[2026,6,18],  e:[2026,6,22],  label:'Unavailable'},
+  {m:'Anan', s:[2026,6,26],  e:[2026,6,26],  label:'Unavailable'},
+  {m:'Anan', s:[2026,8,28],  e:[2026,8,28],  label:'Unavailable'},
+  {m:'Anan', s:[2026,12,26], e:[2026,12,31], label:'Unavailable'},
+  // KANS
+  {m:'Kans', s:[2026,5,1],  e:[2026,5,31], label:'Modi wedding (May, TBD)', vague:true},
+  // YUGANT
+  {m:'Yugant', s:[2026,5,1],  e:[2026,5,3],  label:'Pooja at RKR Yosemite'},
+  {m:'Yugant', s:[2026,5,8],  e:[2026,5,11], label:'DModi Wedding'},
+  {m:'Yugant', s:[2026,5,17], e:[2026,5,20], label:'Pooja in Boston (work)'},
+  {m:'Yugant', s:[2026,5,21], e:[2026,5,24], label:'Pooja in Jersey'},
+  {m:'Yugant', s:[2026,5,22], e:[2026,5,25], label:'YM Outing (Yosemite)'},
+  {m:'Yugant', s:[2026,6,18], e:[2026,6,22], label:"Kunj's Wedding, Canada"},
+  {m:'Yugant', s:[2026,7,17], e:[2026,7,19], label:'SJ Yuvak Wedding, Wisconsin'},
+  {m:'Yugant', s:[2026,8,14], e:[2026,8,18], label:"Zeel's Wedding, Canada"},
+  // NIHAR
+  {m:'Nihar', s:[2026,4,18], e:[2026,4,18], label:"Kishan's engagement, Toronto"},
+  {m:'Nihar', s:[2026,4,25], e:[2026,4,25], label:"Khushbu's wedding, NJ"},
+  {m:'Nihar', s:[2026,5,2],  e:[2026,5,2],  label:"Ashwin's wedding, Portugal"},
+  {m:'Nihar', s:[2026,5,9],  e:[2026,5,9],  label:"Revti's wedding, Yonkers"},
+  {m:'Nihar', s:[2026,7,18], e:[2026,7,18], label:"Aakash's wedding, NJ"},
+  {m:'Nihar', s:[2026,8,1],  e:[2026,8,1],  label:'Asmita Din in RBV'},
+  {m:'Nihar', s:[2026,8,2],  e:[2026,8,8],  label:"Nihir's wedding, NJ"},
+  // HARSH
+  {m:'Harsh', s:[2026,4,20], e:[2026,4,20], label:'Kisu Maharaj Engagement'},
+  {m:'Harsh', s:[2026,5,8],  e:[2026,5,10], label:'D-Modi wedding'},
+  {m:'Harsh', s:[2026,5,20], e:[2026,5,24], label:'Bach'},
+  {m:'Harsh', s:[2026,7,17], e:[2026,7,19], label:'Wedding'},
+  {m:'Harsh', s:[2026,8,1],  e:[2026,8,7],  label:'Wedding (first week Aug)', vague:true},
+  {m:'Harsh', s:[2026,9,4],  e:[2026,9,5],  label:'Busy weekend'},
+  {m:'Harsh', s:[2026,9,26], e:[2026,9,26], label:'Engagement'},
+  {m:'Harsh', s:[2026,10,1], e:[2026,10,2], label:'Busy weekend'},
+  {m:'Harsh', s:[2026,10,31],e:[2026,10,31],label:'Wedding'},
+  // DEV
+  {m:'Dev', s:[2026,6,5],  e:[2026,6,7],  label:'Busy weekend'},
+  {m:'Dev', s:[2026,7,18], e:[2026,7,26], label:'Unavailable'},
+  {m:'Dev', s:[2026,8,13], e:[2026,8,16], label:'Wedding'},
+  {m:'Dev', s:[2026,9,30], e:[2026,9,30], label:'Unavailable'},
+  // YOGESH
+  {m:'Yogesh', s:[2026,4,26], e:[2026,4,26], label:'Unavailable'},
+  {m:'Yogesh', s:[2026,5,1],  e:[2026,5,3],  label:'Unavailable'},
+  {m:'Yogesh', s:[2026,5,7],  e:[2026,5,8],  label:'Unavailable'},
+  {m:'Yogesh', s:[2026,6,26], e:[2026,7,5],  label:'Unavailable'},
+  {m:'Yogesh', s:[2026,7,10], e:[2026,7,12], label:'Unavailable'},
+  // BAPA IN PARIS
+  ...['Anan','Kans','Yugant','Nihar','Harsh','Dev','Yogesh'].map(m =>
+    ({m, s:[2026,9,1], e:[2026,9,14], label:'Bapa in Paris'})
+  ),
+  // GROUP BLACKOUTS
+  ...['Anan','Kans','Yugant','Nihar','Harsh','Dev','Yogesh'].flatMap(m => [
+    {m, s:[2026,5,6],  e:[2026,5,10], label:'Everyone busy'},
+    {m, s:[2026,6,19], e:[2026,6,20], label:'Everyone busy'},
+    {m, s:[2026,7,10], e:[2026,7,12], label:'Everyone busy'},
+  ]),
+];
+
+// ─── USER ENTRIES ─────────────────────────────────────────────────────────────
+let userEntries = [];
+let conflictMap = {};
+
+function buildConflictMap() {
+  conflictMap = {};
+  const all = [
+    ...STATIC_RANGES,
+    ...userEntries.map(e => ({m:e.name, s:e.start, e:e.end, label:e.label, userAdded:true}))
+  ];
+  for (const r of all) {
+    const start = new Date(r.s[0], r.s[1]-1, r.s[2]);
+    const end   = new Date(r.e[0], r.e[1]-1, r.e[2]);
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate()+1)) {
+      const key = `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`;
+      if (!conflictMap[key]) conflictMap[key] = [];
+      conflictMap[key].push({member:r.m, label:r.label, vague:!!r.vague, userAdded:!!r.userAdded});
+    }
+  }
+}
+
+function getConflicts(y, mo, d) { return conflictMap[`${y}-${mo}-${d}`] || []; }
+
+// ─── CALENDAR ─────────────────────────────────────────────────────────────────
+const DAY_LABELS = ['Su','Mo','Tu','We','Th','Fr','Sa'];
+const today = new Date(2026, 3, 19);
+
+function compressDays(days) {
+  days = [...new Set(days)].sort((a,b)=>a-b);
+  const ranges = []; let s=days[0],e=days[0];
+  for (let i=1;i<days.length;i++) {
+    if (days[i]===e+1){e=days[i];}
+    else{ranges.push(s===e?`${s}`:`${s}–${e}`);s=e=days[i];}
+  }
+  ranges.push(s===e?`${s}`:`${s}–${e}`);
+  return ranges.join(', ');
+}
+
+function getOpenWeekends(year, month) {
+  const open=[], dim=new Date(year,month,0).getDate();
+  for (let day=1;day<=dim;day++) {
+    if (new Date(year,month-1,day).getDay()===6) {
+      if (getConflicts(year,month,day).length===0 &&
+          (day+1>dim||getConflicts(year,month,day+1).length===0))
+        open.push({sat:day,sun:day+1});
+    }
+  }
+  return open;
+}
+
+function renderMonth(year, month) {
+  const card = document.createElement('div');
+  card.className = 'month-card';
+
+  const openW = getOpenWeekends(year, month);
+  const hdr = document.createElement('div');
+  hdr.className = 'month-header';
+  hdr.innerHTML = `<span class="month-name">${MONTH_NAMES[month-1]}</span><span class="month-year">${year}</span>`;
+  if (openW.length) {
+    const b = document.createElement('span');
+    b.className='open-badge';
+    b.textContent=`${openW.length} open wknd${openW.length>1?'s':''}`;
+    hdr.appendChild(b);
+  }
+  card.appendChild(hdr);
+
+  const body = document.createElement('div');
+  body.className='month-body';
+
+  const grid=document.createElement('div');
+  grid.className='cal-grid';
+  DAY_LABELS.forEach(d=>{
+    const l=document.createElement('div');
+    l.className='cal-day-label';l.textContent=d;grid.appendChild(l);
+  });
+
+  const firstDay=new Date(year,month-1,1).getDay();
+  const dim=new Date(year,month,0).getDate();
+  for(let i=0;i<firstDay;i++){const c=document.createElement('div');c.className='cal-day empty';grid.appendChild(c);}
+
+  for(let day=1;day<=dim;day++){
+    const conflicts=getConflicts(year,month,day);
+    const cell=document.createElement('div');
+    const isToday=(year===today.getFullYear()&&month===today.getMonth()+1&&day===today.getDate());
+    const dow=new Date(year,month-1,day).getDay();
+    let cls='cal-day free';
+    if(conflicts.length===0&&(dow===0||dow===6)) cls='cal-day open-weekend';
+    else if(conflicts.length>=3) cls='cal-day busy';
+    else if(conflicts.length>0) cls='cal-day partial';
+    if(isToday) cls+=' today';
+    cell.className=cls;
+    cell.textContent=day;
+    if(conflicts.length>0)
+      cell.title=conflicts.map(c=>`${c.member}: ${c.label}${c.vague?' (?)':''}`).join('\n');
+    grid.appendChild(cell);
+  }
+  body.appendChild(grid);
+
+  // Breakdown
+  const mc={};
+  for(let day=1;day<=dim;day++)
+    for(const c of getConflicts(year,month,day)){
+      const k=`${c.member}|||${c.label}`;
+      if(!mc[k]) mc[k]={...c,days:[]};
+      mc[k].days.push(day);
+    }
+
+  const entries=Object.values(mc);
+  if(entries.length){
+    const cList=document.createElement('div');cList.className='conflict-list';
+    const byM={};
+    for(const e of entries){if(!byM[e.member])byM[e.member]=[];byM[e.member].push(e);}
+    for(const[member,evts] of Object.entries(byM)){
+      const row=document.createElement('div');row.className='conflict-row';
+      const ne=document.createElement('div');ne.className='conflict-name';ne.textContent=member;row.appendChild(ne);
+      const ee=document.createElement('div');ee.className='conflict-event';
+      ee.innerHTML=evts.map(e=>{
+        const dStr=compressDays(e.days);
+        const tag=e.userAdded?'<span class="tag-user">added</span>':'<span class="tag-busy">busy</span>';
+        return `${tag}${dStr} — ${e.label}`;
+      }).join('<br>');
+      row.appendChild(ee);cList.appendChild(row);
+    }
+    body.appendChild(cList);
+  }
+
+  card.appendChild(body);
+  return card;
+}
+
+function renderCalendar() {
+  buildConflictMap();
+  const root=document.getElementById('cal-root');
+  root.innerHTML='';
+  [4,5,6,7,8,9,10,11,12].forEach(m=>root.appendChild(renderMonth(2026,m)));
+}
+
+// ─── BEST WINDOWS ─────────────────────────────────────────────────────────────
+const WINDOWS=[
+  {dates:'June 12–14',           note:'Best June window — before June 18+ conflicts'},
+  {dates:'Sep 18–20',            note:'First open weekend after Bapa returns Sep 14'},
+  {dates:'Sep 25–27',            note:'Watch Harsh Sep 26 engagement — otherwise clean'},
+  {dates:'Oct 9–11 (Columbus Day)', note:'Long weekend, minimal conflicts 🏆'},
+  {dates:'Oct 16–18',            note:'Very clean post Harsh Oct 1–2'},
+  {dates:'Oct 23–25',            note:'Clean before Halloween weekend'},
+  {dates:'November (any)',        note:'Wide open for everyone — most flexibility'},
+  {dates:'Dec 18–20',            note:'Pre-Christmas window'},
+];
+
+function renderWindows() {
+  const el=document.getElementById('open-windows-list');el.innerHTML='';
+  WINDOWS.forEach(w=>{
+    const c=document.createElement('div');c.className='window-card';
+    c.innerHTML=`<div class="window-dates">✦ ${w.dates}</div><div class="window-note">${w.note}</div>`;
+    el.appendChild(c);
+  });
+}
+
+// ─── FORM ─────────────────────────────────────────────────────────────────────
+function showToast(msg, isError=false) {
+  const t=document.getElementById('toast');
+  t.textContent=msg;
+  t.classList.toggle('error', isError);
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2400);
+}
+
+function fmtDate([y,m,d]){return `${MONTH_NAMES[m-1].slice(0,3)} ${d}`;}
+
+function renderEntryList() {
+  const list=document.getElementById('entry-list');
+  const noEl=document.getElementById('no-entries');
+  list.querySelectorAll('.entry-item').forEach(el=>el.remove());
+  if(!userEntries.length){noEl.style.display='block';return;}
+  noEl.style.display='none';
+  userEntries.forEach(entry=>{
+    const item=document.createElement('div');item.className='entry-item';
+    const s=entry.start,e=entry.end;
+    const same=s[0]===e[0]&&s[1]===e[1]&&s[2]===e[2];
+    const dateStr=same?fmtDate(s):`${fmtDate(s)} – ${fmtDate(e)}`;
+    item.innerHTML=`
+      <div class="entry-info">
+        <div class="entry-name">${entry.name}</div>
+        <div class="entry-dates">${dateStr}</div>
+        <div class="entry-reason">${entry.label}</div>
+      </div>
+      <button class="entry-remove" data-id="${entry.id}">remove</button>`;
+    item.querySelector('.entry-remove').addEventListener('click',()=>{
+      userEntries=userEntries.filter(e=>e.id!==entry.id);
+      renderEntryList();renderCalendar();
+    });
+    list.appendChild(item);
+  });
+}
+
+document.getElementById('submit-btn').addEventListener('click',()=>{
+  const name=document.getElementById('f-name').value.trim();
+  const reason=document.getElementById('f-reason').value.trim();
+  const startV=document.getElementById('f-start').value;
+  const endV=document.getElementById('f-end').value;
+
+  if(!name)  {showToast('⚠ Please select your name',true);return;}
+  if(!startV){showToast('⚠ Please pick a start date',true);return;}
+  if(!reason){showToast('⚠ Please add a reason',true);return;}
+
+  const endFinal=endV||startV;
+  const ps=startV.split('-').map(Number);
+  const pe=endFinal.split('-').map(Number);
+  const toN=([y,m,d])=>y*10000+m*100+d;
+  if(toN(pe)<toN(ps)){showToast('⚠ End date must be after start date',true);return;}
+
+  userEntries.push({id:Date.now(),name,start:ps,end:pe,label:reason});
+  document.getElementById('f-name').value='';
+  document.getElementById('f-reason').value='';
+  document.getElementById('f-start').value='';
+  document.getElementById('f-end').value='';
+  renderEntryList();renderCalendar();
+  showToast(`✓ ${name}'s dates added!`);
+});
+
+// Toggle panel
+document.getElementById('panel-toggle').addEventListener('click',()=>{
+  document.getElementById('panel-toggle').classList.toggle('open');
+  document.getElementById('panel-body').classList.toggle('open');
+});
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+renderCalendar();
+renderWindows();
+</script>
+</body>
+</html>
