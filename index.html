@@ -263,6 +263,71 @@
   }
   .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
   .toast.error { background: var(--red); color: #fff; }
+
+  /* INLINE EDIT */
+  .entry-edit {
+    background: none; border: 1px solid var(--border); border-radius: 5px;
+    color: var(--muted); font-size: 11px; padding: 3px 9px; cursor: pointer;
+    flex-shrink: 0; font-family: 'DM Mono', monospace; transition: all 0.15s;
+  }
+  .entry-edit:hover { border-color: var(--accent); color: var(--accent); }
+  .entry-edit-form { display: flex; flex-direction: column; gap: 8px; flex: 1; min-width: 0; }
+  .entry-edit-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .entry-edit-form select,
+  .entry-edit-form input {
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 6px;
+    color: var(--text); font-family: 'DM Mono', monospace; font-size: 12px;
+    padding: 6px 10px; outline: none; width: 100%; -webkit-appearance: none; appearance: none;
+  }
+  .entry-edit-form select:focus, .entry-edit-form input:focus { border-color: var(--accent); }
+  .entry-edit-actions { display: flex; gap: 6px; margin-top: 2px; flex-wrap: wrap; }
+  .entry-save {
+    background: var(--accent); color: #0e0e0e; border: none; border-radius: 5px;
+    font-family: 'DM Mono', monospace; font-size: 11px; padding: 4px 12px; cursor: pointer;
+    font-weight: 500; transition: opacity 0.15s;
+  }
+  .entry-save:hover { opacity: 0.85; }
+  .entry-save:disabled { opacity: 0.5; cursor: not-allowed; }
+  .entry-cancel {
+    background: none; border: 1px solid var(--border); border-radius: 5px;
+    color: var(--muted); font-family: 'DM Mono', monospace; font-size: 11px;
+    padding: 4px 10px; cursor: pointer; transition: all 0.15s;
+  }
+  .entry-cancel:hover { border-color: var(--muted); color: var(--text); }
+
+  /* FILTER BAR */
+  .filter-bar {
+    max-width: 700px; margin: 0 auto 28px;
+    display: flex; align-items: center;
+  }
+  .filter-bar-inner { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .filter-label {
+    font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--muted); white-space: nowrap;
+  }
+  .filter-dropdown-wrap { position: relative; }
+  .filter-btn {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 100px;
+    color: var(--text); font-family: 'DM Mono', monospace; font-size: 12px;
+    padding: 6px 16px; cursor: pointer; transition: all 0.2s; white-space: nowrap;
+  }
+  .filter-btn:hover { border-color: var(--muted); }
+  .filter-btn.active { border-color: var(--accent); color: var(--accent); }
+  .filter-panel {
+    display: none; position: absolute; top: calc(100% + 6px); left: 0;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+    padding: 10px 0; min-width: 180px; z-index: 100;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  }
+  .filter-panel.open { display: block; }
+  .filter-option {
+    display: flex; align-items: center; gap: 10px;
+    padding: 7px 16px; cursor: pointer; font-size: 12px; color: var(--text);
+    transition: background 0.1s; user-select: none;
+  }
+  .filter-option:hover { background: var(--surface2); }
+  .filter-option input[type="checkbox"] { accent-color: var(--accent); cursor: pointer; }
+  .filter-divider { border: none; border-top: 1px solid var(--border); margin: 6px 0; }
 </style>
 </head>
 <body>
@@ -346,6 +411,17 @@
   </div>
 </div>
 
+<!-- FILTER BAR -->
+<div class="filter-bar" id="filter-bar" style="display:none">
+  <div class="filter-bar-inner">
+    <span class="filter-label">Filter by person</span>
+    <div class="filter-dropdown-wrap">
+      <button class="filter-btn" id="filter-btn">All people ▾</button>
+      <div class="filter-panel" id="filter-panel"></div>
+    </div>
+  </div>
+</div>
+
 <!-- LEGEND -->
 <div class="legend">
   <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div> Open weekend</div>
@@ -363,7 +439,7 @@
 <!-- Firebase -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFirestore, collection, addDoc, deleteDoc, doc, onSnapshot, serverTimestamp, query, orderBy }
+import { getFirestore, collection, addDoc, deleteDoc, updateDoc, doc, onSnapshot, serverTimestamp, query, orderBy }
   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -429,6 +505,7 @@ function getFederalHolidays(year) {
 let userEntries  = []; // from Firestore
 let conflictMap  = {};
 let holidayMap   = {};
+let activeFilters = new Set(); // empty = show all names
 
 function buildMaps(year) {
   conflictMap = {};
@@ -440,11 +517,14 @@ function buildMaps(year) {
   });
 
   // Combined busy list: group busy (only 2026 for now) + user entries
+  const visibleEntries = activeFilters.size === 0
+    ? userEntries
+    : userEntries.filter(e => activeFilters.has(e.name));
   const all = [
     ...GROUP_BUSY_2026.map(g => ({
       m: g.name, s: g.start, e: g.end, label: g.label, group: true
     })),
-    ...userEntries.map(e => ({
+    ...visibleEntries.map(e => ({
       m: e.name, s: e.start, e: e.end, label: e.label, userAdded: true
     }))
   ];
@@ -830,28 +910,154 @@ function renderEntryList() {
     return ta-tb;
   });
 
-  sorted.forEach(entry=>{
-    const item=document.createElement('div'); item.className='entry-item';
-    const s=entry.start, e=entry.end;
-    const same=s[0]===e[0]&&s[1]===e[1]&&s[2]===e[2];
-    const dateStr=same?fmtDate(s):`${fmtDate(s)} – ${fmtDate(e)}`;
-    item.innerHTML=`
-      <div class="entry-info">
-        <div class="entry-name">${entry.name}</div>
-        <div class="entry-dates">${dateStr}</div>
-        <div class="entry-reason">${entry.label}</div>
-      </div>
-      <button class="entry-remove" data-id="${entry.firestoreId}">remove</button>`;
-    item.querySelector('.entry-remove').addEventListener('click', async () => {
-      try {
-        await deleteDoc(doc(db, 'entries', entry.firestoreId));
-      } catch(err) {
-        console.error(err);
-        showToast('⚠ Could not remove entry', true);
-      }
-    });
+  const toDateStr = ([y,m,d]) => `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+
+  sorted.forEach(entry => {
+    const item = document.createElement('div'); item.className = 'entry-item';
+    const s = entry.start, e = entry.end;
+    const same = s[0]===e[0] && s[1]===e[1] && s[2]===e[2];
+    const dateStr = same ? fmtDate(s) : `${fmtDate(s)} – ${fmtDate(e)}`;
+
+    function showDisplay() {
+      item.innerHTML = `
+        <div class="entry-info">
+          <div class="entry-name">${entry.name}</div>
+          <div class="entry-dates">${dateStr}</div>
+          <div class="entry-reason">${entry.label}</div>
+        </div>
+        <div style="display:flex;gap:6px;flex-shrink:0">
+          <button class="entry-edit">edit</button>
+          <button class="entry-remove">remove</button>
+        </div>`;
+
+      item.querySelector('.entry-remove').addEventListener('click', async () => {
+        try {
+          await deleteDoc(doc(db, 'entries', entry.firestoreId));
+        } catch(err) {
+          console.error(err);
+          showToast('⚠ Could not remove entry', true);
+        }
+      });
+
+      item.querySelector('.entry-edit').addEventListener('click', () => showEditForm());
+    }
+
+    function showEditForm() {
+      const nameOptions = Array.from(document.getElementById('f-name').options)
+        .map(o => `<option${o.text === entry.name ? ' selected' : ''}>${o.text}</option>`)
+        .join('');
+
+      item.innerHTML = `
+        <div class="entry-edit-form">
+          <select class="edit-name">${nameOptions}</select>
+          <input class="edit-reason" type="text" value="${entry.label.replace(/"/g, '&quot;')}" maxlength="60" placeholder="Reason / Event">
+          <div class="entry-edit-row">
+            <input class="edit-start" type="date" value="${toDateStr(s)}">
+            <input class="edit-end" type="date" value="${toDateStr(e)}">
+          </div>
+          <div class="entry-edit-actions">
+            <button class="entry-save">save</button>
+            <button class="entry-cancel">cancel</button>
+            <button class="entry-remove">remove</button>
+          </div>
+        </div>`;
+
+      item.querySelector('.entry-cancel').addEventListener('click', () => showDisplay());
+
+      item.querySelector('.entry-remove').addEventListener('click', async () => {
+        try {
+          await deleteDoc(doc(db, 'entries', entry.firestoreId));
+        } catch(err) {
+          console.error(err);
+          showToast('⚠ Could not remove entry', true);
+        }
+      });
+
+      item.querySelector('.entry-save').addEventListener('click', async () => {
+        const newName   = item.querySelector('.edit-name').value;
+        const newLabel  = item.querySelector('.edit-reason').value.trim();
+        const newStartV = item.querySelector('.edit-start').value;
+        const newEndV   = item.querySelector('.edit-end').value;
+
+        if (!newName)   { showToast('⚠ Please select a name', true); return; }
+        if (!newLabel)  { showToast('⚠ Please add a reason', true); return; }
+        if (!newStartV) { showToast('⚠ Please pick a start date', true); return; }
+
+        const newStart = newStartV.split('-').map(Number);
+        const newEnd   = (newEndV || newStartV).split('-').map(Number);
+        const toN = ([y,m,d]) => y*10000+m*100+d;
+        if (toN(newEnd) < toN(newStart)) { showToast('⚠ End date must be after start date', true); return; }
+
+        const saveBtn = item.querySelector('.entry-save');
+        saveBtn.disabled = true; saveBtn.textContent = 'saving...';
+        try {
+          await updateDoc(doc(db, 'entries', entry.firestoreId), {
+            name: newName, label: newLabel, start: newStart, end: newEnd
+          });
+          showToast('✓ Entry updated');
+        } catch(err) {
+          console.error(err);
+          showToast('⚠ Could not save changes', true);
+          saveBtn.disabled = false; saveBtn.textContent = 'save';
+        }
+      });
+    }
+
+    showDisplay();
     list.appendChild(item);
   });
+  renderFilterBar();
+}
+
+// ─── FILTER BAR ──────────────────────────────────────────────────────────────
+function renderFilterBar() {
+  const names = [...new Set(userEntries.map(e => e.name))].sort();
+  const bar = document.getElementById('filter-bar');
+  if (names.length === 0) { bar.style.display = 'none'; return; }
+  bar.style.display = '';
+
+  const panel = document.getElementById('filter-panel');
+  panel.innerHTML = '';
+
+  const allOpt = document.createElement('label');
+  allOpt.className = 'filter-option';
+  const allCb = document.createElement('input');
+  allCb.type = 'checkbox'; allCb.checked = activeFilters.size === 0;
+  allCb.addEventListener('change', () => {
+    activeFilters.clear();
+    renderFilterBar(); renderCalendar();
+  });
+  allOpt.append(allCb, ' All people');
+  panel.appendChild(allOpt);
+
+  const hr = document.createElement('hr'); hr.className = 'filter-divider';
+  panel.appendChild(hr);
+
+  names.forEach(name => {
+    const label = document.createElement('label');
+    label.className = 'filter-option';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox'; cb.checked = activeFilters.has(name);
+    cb.addEventListener('change', () => {
+      if (cb.checked) activeFilters.add(name);
+      else activeFilters.delete(name);
+      renderFilterBar(); renderCalendar();
+    });
+    label.append(cb, ' ' + name);
+    panel.appendChild(label);
+  });
+
+  const btn = document.getElementById('filter-btn');
+  if (activeFilters.size === 0) {
+    btn.textContent = 'All people ▾';
+    btn.classList.remove('active');
+  } else if (activeFilters.size === 1) {
+    btn.textContent = `${[...activeFilters][0]} ▾`;
+    btn.classList.add('active');
+  } else {
+    btn.textContent = `${activeFilters.size} people ▾`;
+    btn.classList.add('active');
+  }
 }
 
 // ─── INITIAL RENDER (before Firebase so UI shows immediately) ────────────────
@@ -945,6 +1151,18 @@ document.getElementById('submit-btn').addEventListener('click', async () => {
 document.getElementById('panel-toggle').addEventListener('click',()=>{
   document.getElementById('panel-toggle').classList.toggle('open');
   document.getElementById('panel-body').classList.toggle('open');
+});
+
+// Filter dropdown toggle
+document.getElementById('filter-btn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  document.getElementById('filter-panel').classList.toggle('open');
+});
+document.addEventListener('click', (e) => {
+  const wrap = document.querySelector('.filter-dropdown-wrap');
+  if (wrap && !wrap.contains(e.target)) {
+    document.getElementById('filter-panel').classList.remove('open');
+  }
 });
 </script>
 </body>
