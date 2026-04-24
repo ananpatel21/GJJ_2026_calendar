@@ -297,8 +297,8 @@
 
   /* FILTER BAR */
   .filter-bar {
-    max-width: 700px; margin: 0 auto 28px;
-    display: flex; align-items: center;
+    display: flex; align-items: center; margin-top: 10px;
+    padding-top: 10px; border-top: 1px solid var(--border);
   }
   .filter-bar-inner { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
   .filter-label {
@@ -408,19 +408,19 @@
       <div class="loading-entries" id="loading-entries">Loading entries...</div>
       <div class="no-entries" id="no-entries" style="display:none">No entries yet — add yours above!</div>
     </div>
-  </div>
-</div>
 
-<!-- FILTER BAR -->
-<div class="filter-bar" id="filter-bar" style="display:none">
-  <div class="filter-bar-inner">
-    <span class="filter-label">Filter by person</span>
-    <div class="filter-dropdown-wrap">
-      <button class="filter-btn" id="filter-btn">All people ▾</button>
-      <div class="filter-panel" id="filter-panel"></div>
+    <div class="filter-bar" id="filter-bar" style="display:none">
+      <div class="filter-bar-inner">
+        <span class="filter-label">Filter by person</span>
+        <div class="filter-dropdown-wrap">
+          <button class="filter-btn" id="filter-btn">All people ▾</button>
+          <div class="filter-panel" id="filter-panel"></div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
+
 
 <!-- LEGEND -->
 <div class="legend">
@@ -902,9 +902,11 @@ function renderEntryList() {
     return;
   }
   noEl.style.display='none';
-  countEl.textContent=`${userEntries.length} entr${userEntries.length===1?'y':'ies'}`;
 
-  const sorted=[...userEntries].sort((a,b)=>{
+  const visibleEntries = activeFilters.size === 0 ? userEntries : userEntries.filter(e => activeFilters.has(e.name));
+  countEl.textContent=`${visibleEntries.length} entr${visibleEntries.length===1?'y':'ies'}`;
+
+  const sorted=[...visibleEntries].sort((a,b)=>{
     const ta=a.start[0]*10000+a.start[1]*100+a.start[2];
     const tb=b.start[0]*10000+b.start[1]*100+b.start[2];
     return ta-tb;
